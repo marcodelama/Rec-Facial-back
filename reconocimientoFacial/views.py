@@ -80,33 +80,38 @@ def asistenciaPersona(request):
                     if coincidencia[0]:
                         today = timezone.now().date()
                         asistencia_hoy = Asistencia.objects.filter(id_persona=persona, dia_registrado=today).first()
-
+                        
                         if asistencia_hoy:
-                            return JsonResponse({'mensaje': 'Ya existe un registro de asistencia para hoy'}, status=400)
-                        
-                        asistencia = Asistencia(
-                            id_persona = persona
-                        )
-                        asistencia.save()
-                        
-                        response_data = {
-                            'mensaje': f'Asistencia registrada',
-                            'persona': {
-                                'nombre': persona.nombre,
-                                'dni': persona.dni,
-                                'apellido_paterno': persona.apellido_paterno,
-                                'apellido_materno': persona.apellido_materno,
-                                'telefono': persona.telefono,
-                                'direccion': persona.direccion,
-                                'correo': persona.correo,
-                                'asistencia': {
-                                    'hora_entrada': asistencia.hora_entrada,
-                                    'hora_salida': asistencia.hora_salida,
-                                    'dia_registrado': asistencia.dia_registrado
+                            if asistencia_hoy.hora_entrada:
+                                asistencia_hoy.hora_salida = timezone.now()
+                                asistencia_hoy.save()
+                                return JsonResponse({'mensaje': f'Salida marcado para {persona.dni}: {persona.nombre}'}, status=200)
+                        else:
+                            asistencia = Asistencia(
+                                id_persona=persona
+                            )
+                            asistencia.save()
+                            
+                            response_data = {
+                                'mensaje': f'Asistencia registrada',
+                                'persona': {
+                                    'nombre': persona.nombre,
+                                    'dni': persona.dni,
+                                    'apellido_paterno': persona.apellido_paterno,
+                                    'apellido_materno': persona.apellido_materno,
+                                    'telefono': persona.telefono,
+                                    'direccion': persona.direccion,
+                                    'correo': persona.correo,
+                                    'imagen': request.build_absolute_uri(persona.imagen.url) if persona.imagen else None,
+                                    'asistencia': {
+                                        'hora_entrada': asistencia.hora_entrada,
+                                        'hora_salida': asistencia.hora_salida,
+                                        'dia_registrado': asistencia.dia_registrado
+                                    }
                                 }
                             }
-                        }
-                        return JsonResponse(response_data, status=200)
+                            return JsonResponse(response_data, status=200)
+
             
             return JsonResponse({'mensaje': 'Rostro no reconocido'}, status=404)
         except Exception as e:
@@ -130,6 +135,7 @@ def verPersonas(request):
                 'telefono': persona.telefono,
                 'direccion': persona.direccion,
                 'correo': persona.correo,
+                'imagen': request.build_absolute_uri(persona.imagen.url) if persona.imagen else None,
                 'asistencias': list(asistencias.values('hora_entrada', 'hora_salida', 'dia_registrado'))  # Las asistencias de la persona
             }
 
@@ -183,6 +189,7 @@ def marcarSalida(request):
                                 'telefono': persona.telefono,
                                 'direccion': persona.direccion,
                                 'correo': persona.correo,
+                                'imagen': request.build_absolute_uri(persona.imagen.url) if persona.imagen else None,
                                 'asistencia': {
                                     'hora_entrada': asistencia.hora_entrada,
                                     'hora_salida': asistencia.hora_salida,
