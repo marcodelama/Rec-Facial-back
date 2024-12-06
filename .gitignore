@@ -1,0 +1,18 @@
+# Python
+*.pyc
+__pycache__/
+
+# Django
+/media/
+/staticfiles/
+
+# Entornos virtuales
+venv/
+env/
+
+# Configuración de IDEs
+.idea/
+.vscode/
+
+# Archivos de sistema
+.DS_Store
