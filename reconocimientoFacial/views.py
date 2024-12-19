@@ -10,30 +10,61 @@ import face_recognition as fr
 import numpy as np
 
 # Importación de modelos
-from .models import SrtrPersonal, SrtrRepositorioImagen, SrthDependencia, SrtrAsistencia
+from .models import SrtrPersonal, SrtrRepositorioImagen, SrtrImagen, SrthDependencia, SrtrAsistencia
 
-# Registro Personal: Modelo SrtrPersonal y SrtrRepositorioImagen
+#Flassger
+import request
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from flasgger import Swagger, swag_from
+import re
+
+app = Flask(__name__)
+
+CORS(app)
+
+swagger = Swagger(app)
+
 @csrf_exempt
 def verDependencias(request):
+    """
+    Ver todas las dependencias
+    ---
+    tags:
+        - Dependencias
+    responses:
+     200:
+        description: Lista de dependencias
+        content: 
+         application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    n_id_dependencia:
+                      type: number
+                    v_descripcion:
+                      type: string
+                    v_abreviatura:
+                      type: string
+              size:
+                type: number
+      405: 
+        descripcion: Método no permitido
+    """
     if request.method == 'GET':
         dependencias = SrthDependencia.objects.all()
-        # personasAsistencia = []
         dependenciasData = []
         for dependencia in dependencias:
-            # asistencias = persona.asistencias.all()
             dependenciaData = {
                 'n_id_dependencia': dependencia.n_id_dependencia,
                 'v_descripcion': dependencia.v_descripcion,
                 'v_abreviatura': dependencia.v_abreviatura,
-                # 'apellido_materno': persona.apellido_materno,
-                # 'telefono': persona.telefono,
-                # 'direccion': persona.direccion,
-                # 'correo': persona.correo,
-                # 'imagen': request.build_absolute_uri(persona.imagen.url) if persona.imagen else None,
-                # 'asistencias': list(asistencias.values('hora_entrada', 'hora_salida', 'dia_registrado'))  # Las asistencias de la persona
             }
-
-            # personasAsistencia.append(personaData)
             dependenciasData.append(dependenciaData)
 
         size = len(dependenciasData)
@@ -44,18 +75,80 @@ def verDependencias(request):
 
 @cache_page(0)
 def verPersonal(request):
+    """
+    Ver información detallada del personal
+    ---
+    tags:
+      - Personal
+    responses: 
+      200: 
+        description: Información de personal
+        content: 
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      n_id_personal:
+                        type: number
+                      v_cod_personal:
+                        type: string
+                      n_num_doc:
+                        type: number
+                      v_nombre:
+                        type: string
+                      v_apellido_paterno:
+                        type: string
+                      v_apellido_materno:
+                        type: string
+                      v_correo_institucional:
+                        type: string
+                      n_telefono_contacto:
+                        type: number
+                      v_disponibilidad:
+                        type: string
+                      c_estado:
+                        type: char
+                      imagenes:
+                        type: object
+                        properties:
+                          id_imagen:
+                            type: number
+                          imagen_url:
+                            type: string
+                          dependencia:
+                            type: object
+                            properties:
+                              id_dependencia
+                                type: number
+                              nombre:
+                                type: string
+                              abreviatura: 
+                                type: string
+                  size:
+                    type: number
+      405:
+        description: Método no permitido
+    """
     if request.method == 'GET':
         personal = SrtrPersonal.objects.all()
         personaData = []
 
         for persona in personal:
             dependencia = persona.n_id_dependencia
+            repoImagen = SrtrRepositorioImagen.objects.filter(n_id_personal = persona.n_id_personal).first()
 
-            imagen = SrtrRepositorioImagen.objects.filter(n_id_personal=persona.n_id_personal).first()
+            imagen = SrtrImagen.objects.filter(n_id_rep_imagen = repoImagen.n_id_rep_imagen).first()
+
+            print("daotsimagen", imagen.n_id_imagen)
 
             imagenes_data = {
-                'id_imagen': imagen.n_id_rep_imagen if imagen else None,
-                'imagen_url': request.build_absolute_uri(imagen.cl_imagen_biometrica) if imagen else None,
+                'id_imagen': imagen.n_id_imagen if imagen else None,
+                'imagen_url': request.build_absolute_uri(f'/media/{imagen.cl_imagen_biometrica}') if imagen else None,
             }
 
             dependencia_data = {
@@ -89,6 +182,13 @@ def verPersonal(request):
 
 @csrf_exempt
 def registrarPersona(request):
+    """
+    Registrar información del personal
+    ---
+    tags:
+    - personal
+    responses 
+    """
     if request.method == 'POST':
         numDni = request.POST.get('n_num_doc')
         codPersonal = request.POST.get('v_cod_personal')
@@ -101,7 +201,7 @@ def registrarPersona(request):
         archivo = request.FILES.get('cl_imagen_biometrica')
 
         if not nombre or not archivo or not numDni or not apellidoPaterno or not apellidoMaterno or not telefono or not correo:
-            return JsonResponse({'error': 'Hay datos que aun no se ha proporcionado'}, status=400)
+            return JsonResponse({'error': 'Hay datos que aun no se han proporcionado'}, status=400)
 
         imagen = fr.load_image_file(archivo)
         encodings = fr.face_encodings(imagen)
@@ -129,10 +229,18 @@ def registrarPersona(request):
                 datosPersonal = SrtrPersonal.objects.filter(n_num_doc=numDni).first()
                 idPersonal = SrtrPersonal.objects.get(n_id_personal=datosPersonal.n_id_personal)
 
-                imagen = SrtrRepositorioImagen(
-                    cl_imagen_biometrica=archivo,
-                    cl_encoding=encoding,
+                repositorioImagen = SrtrRepositorioImagen(
                     n_id_personal=idPersonal
+                )
+                repositorioImagen.save()
+                
+                repositorio = SrtrRepositorioImagen.objects.filter(n_id_personal = idPersonal).first()
+                idRepositorio = SrtrRepositorioImagen.objects.get(n_id_rep_imagen = repositorio.n_id_rep_imagen)
+
+                imagen = SrtrImagen(
+                    cl_imagen_biometrica = archivo,
+                    cl_encoding = encoding,
+                    n_id_rep_imagen = idRepositorio
                 )
                 imagen.save()
 
@@ -161,11 +269,19 @@ def registrarImagen(request):
             encoding = np.array(encodings[0]).tolist()
 
             id_personal = SrtrPersonal.objects.get(n_id_personal=idPersonal)
+            
+            repoImagen = SrtrRepositorioImagen(
+                n_id_personal = id_personal
+            )
+            repoImagen.save()
 
-            imagen = SrtrRepositorioImagen(
+            repositorio = SrtrRepositorioImagen.objects.filter(n_id_personal = idPersonal).first()
+            idRepositorio = SrtrRepositorioImagen.objects.get(n_id_rep_imagen = repositorio.n_id_rep_imagen)
+
+            imagen = SrtrImagen(
                 cl_imagen_biometrica = archivo,
                 cl_encoding = encoding,
-                n_id_personal = id_personal
+                n_id_rep_imagen = idRepositorio
             )
             imagen.save()
             
@@ -178,7 +294,7 @@ def registrarImagen(request):
 @csrf_exempt
 def asistenciaPersona(request):
     if request.method == 'POST':
-        archivo = request.FILES['imagen']
+        archivo = request.FILES['cl_imagen_biometrica']
 
         if not archivo:
             return JsonResponse({'mensaje': 'Imagen es obligatoria'}, status=400)
@@ -192,9 +308,10 @@ def asistenciaPersona(request):
         encodingDesconocido = encodingsDesconocido[0]
 
         try: 
-            imagenes = SrtrRepositorioImagen.objects.all()
+            imagenes = SrtrImagen.objects.all()
             for imagen in imagenes:
-                persona = imagen.n_id_personal
+                repo = imagen.n_id_rep_imagen
+                persona = repo.n_id_personal
                 if imagen.cl_encoding:
                     encondingRegistrado = np.array(eval(imagen.cl_encoding))
                     coincidencia = fr.compare_faces([encondingRegistrado], encodingDesconocido)
@@ -207,7 +324,7 @@ def asistenciaPersona(request):
                                 asistencia_hoy.t_hora_fin = timezone.now()
                                 asistencia_hoy.c_estado = 2
                                 asistencia_hoy.save()
-                                return JsonResponse({'mensaje': f'Salida marcada para {persona.n_num_doc}: {persona.v_nombre}'}, status=200)
+                                return JsonResponse({'mensaje': f'Salida marcada para {persona.n_num_doc}: {persona.v_nombre}, {persona.v_apellido_paterno}'}, status=200)
                         else:
                             asistencia = SrtrAsistencia(
                                 t_hora_inicio = timezone.now(),
@@ -217,9 +334,7 @@ def asistenciaPersona(request):
                             )
                             asistencia.save()
                                 
-                            response_data = {
-                                'mensaje': f'Asistencia registrada',
-                            }
+                            response_data = {'mensaje': f'Asistencia registrada de {persona.v_nombre, persona.v_apellido_paterno}',}
                             return JsonResponse(response_data, status=200)
 
             
@@ -228,141 +343,3 @@ def asistenciaPersona(request):
             return JsonResponse({'error': f'Ocurrio un error inesperado: {e}'}, status=500)
     
     return JsonResponse({'mensaje': 'Método no permitido'}, status=405)
-
-
-# @csrf_exempt
-# def asistenciaPersona(request):
-#     if request.method == 'POST':
-#         archivo = request.FILES['imagen']
-
-#         if not archivo:
-#             return JsonResponse({'mensaje': 'Imagen es obligatoria'}, status=400)
-        
-#         imagenDesconocida = fr.load_image_file(archivo)
-#         encodingsDesconocido = fr.face_encodings(imagenDesconocida)
-
-#         if not encodingsDesconocido:
-#             return JsonResponse({'mensaje': 'No se detectó ningún rostro en la imagen'}, status=400)
-        
-#         encodingDesconocido = encodingsDesconocido[0]
-
-#         try: 
-#             personas = Persona.objects.all()
-#             for persona in personas:
-#                 if persona.encoding:
-#                     encondingRegistrado = np.array(eval(persona.encoding))
-#                     coincidencia = fr.compare_faces([encondingRegistrado], encodingDesconocido)
-#                     if coincidencia[0]:
-#                         today = timezone.now().date()
-#                         asistencia_hoy = Asistencia.objects.filter(id_persona=persona, dia_registrado=today).first()
-                        
-#                         if asistencia_hoy:
-#                             if asistencia_hoy.hora_entrada:
-#                                 asistencia_hoy.hora_salida = timezone.now()
-#                                 asistencia_hoy.save()
-#                                 return JsonResponse({'mensaje': f'Salida marcado para {persona.dni}: {persona.nombre}'}, status=200)
-#                         else:
-#                             asistencia = Asistencia(
-#                                 id_persona=persona
-#                             )
-#                             asistencia.save()
-                            
-#                             response_data = {
-#                                 'mensaje': f'Asistencia registrada',
-#                                 'persona': {
-#                                     'nombre': persona.nombre,
-#                                     'dni': persona.dni,
-#                                     'apellido_paterno': persona.apellido_paterno,
-#                                     'apellido_materno': persona.apellido_materno,
-#                                     'telefono': persona.telefono,
-#                                     'direccion': persona.direccion,
-#                                     'correo': persona.correo,
-#                                     'imagen': request.build_absolute_uri(persona.imagen.url) if persona.imagen else None,
-#                                     'asistencia': {
-#                                         'hora_entrada': asistencia.hora_entrada,
-#                                         'hora_salida': asistencia.hora_salida,
-#                                         'dia_registrado': asistencia.dia_registrado
-#                                     }
-#                                 }
-                            #     'persona': {
-                            #         'id_personal': persona.n_id_personal,
-                            #         'cod_personal': persona.v_cod_personal,
-                            #         'num_dni': persona.n_num_doc,
-                            #         'nombre': persona.v_nombre,
-                            #         'apellido_paterno': persona.v_apellido_paterno,
-                            #         'apellido_materno': persona.v_apellido_materno,
-                            #         'telefono': persona.n_telefono_contacto,
-                            #         'correo_institucional': persona.v_correo_institucional,
-                            #         'imagen': request.build_absolute_uri(imagen.cl_imagen_biometrica) if imagen.cl_imagen_biometrica else None,
-                            #         'asistencia': {
-                            #         'hora_entrada': asistencia.t_hora_inicio,
-                            #         'hora_salida': asistencia.t_hora_fin,
-                            #         'dia_registrado': asistencia.d_fecha
-                            #         }
-                            #     }
-                            # return JsonResponse(response_data, status=200)
-
-            
-#             return JsonResponse({'mensaje': 'Rostro no reconocido'}, status=404)
-#         except Exception as e:
-#             return JsonResponse({'error': f'Ocurrio un error inesperado: {e}'}, status=500)
-    
-#     return JsonResponse({'mensaje': 'Método no permitido'}, status=405)
-
-
-# @csrf_exempt
-# def marcarSalida(request):
-#     if request.method == 'POST':
-#         archivo = request.FILES['imagen']
-
-#         if not archivo:
-#             return JsonResponse({'mensaje': 'Imagen es obligatoria'}, status=400)
-        
-#         imagenDesconocida = fr.load_image_file(archivo)
-#         encodingsDesconocido = fr.face_encodings(imagenDesconocida)
-
-#         if not encodingsDesconocido:
-#             return JsonResponse({'mensaje': 'No se detectó ningún rostro en la imagen'}, status=400)
-        
-#         encodingDesconocido = encodingsDesconocido[0]
-
-#         try:
-#             personas = Persona.objects.all()
-#             for persona in personas:
-#                 if persona.encoding:
-#                     encodingRegistrado = np.array(eval(persona.encoding))
-#                     coincidencia = fr.compare_faces([encodingRegistrado], encodingDesconocido)
-
-#                     if coincidencia[0]:
-#                         asistencia = Asistencia.objects.filter(id_persona=persona, dia_registrado =timezone.now().date()).first()
-
-#                         if asistencia.hora_salida:
-#                             return JsonResponse({'mensaje': 'La hora de salida ya fue marcado'}, status=400)
-                        
-#                         asistencia.hora_salida = timezone.now() 
-#                         asistencia.save()
-                        
-#                         response_data = {
-#                             'mensaje': f'Salida registrada',
-#                             'persona': {
-#                                 'nombre': persona.nombre,
-#                                 'dni': persona.dni,
-#                                 'apellido_paterno': persona.apellido_paterno,
-#                                 'apellido_materno': persona.apellido_materno,
-#                                 'telefono': persona.telefono,
-#                                 'direccion': persona.direccion,
-#                                 'correo': persona.correo,
-#                                 'imagen': request.build_absolute_uri(persona.imagen.url) if persona.imagen else None,
-#                                 'asistencia': {
-#                                     'hora_entrada': asistencia.hora_entrada,
-#                                     'hora_salida': asistencia.hora_salida,
-#                                     'dia_registrado': asistencia.dia_registrado
-#                                 }
-#                             }
-#                         }
-#                         return JsonResponse(response_data, status=200)
-
-#             return JsonResponse({'mensaje': 'Rostro no reconocido'}, status=404)
-
-#         except Exception as e:
-#             return JsonResponse({'error': f'Ocurrio un error inesperado: {e}'}, status=500)
