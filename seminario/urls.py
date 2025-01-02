@@ -15,18 +15,52 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, re_path, include
 from reconocimientoFacial import views
 from django.conf import settings
 from django.conf.urls.static import static
+from rest_framework import permissions
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
+
+schema_view = get_schema_view(
+   openapi.Info(
+      title="API Documentación",
+      default_version='v1',
+      description="Documentación de tu API",
+      terms_of_service="https://www.google.com/policies/terms/",
+      contact=openapi.Contact(email="contact@snippets.local"),
+      license=openapi.License(name="BSD License"),
+   ),
+   public=True,
+   permission_classes=(permissions.AllowAny,),
+)
 
 urlpatterns = [
+    # URLs de documentación
+    # path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    # re_path(r'^docs/api.json$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+    # re_path(r'^docs/redoc/$', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    path('api/docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('api/docs/swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+    path('api/docs/redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    
+    # URL del administrador
     path('admin/', admin.site.urls),
-    path('registrar-personal/', views.registrarPersona, name='registrar'),
-    path('registrar-imagen/', views.registrarImagen, name='imagen'),
-    path('asistencia/', views.asistenciaPersona, name='asistencia'),
-    path('dependencias/', views.verDependencias, name='dependencias'),
-    path('personal/', views.verPersonal, name='personal')
+    
+    path('api/', include([
+
+        path('personal/', views.verPersonal, name='personal'),
+        path('registrar-personal/', views.registrarPersona, name='registrar'),
+        path('registrar-imagen/', views.registrarImagen, name='imagen'),
+        
+        # URLs de asistencia
+        path('asistencia/', views.asistenciaPersona, name='asistencia'),
+        
+        # URLs de dependencias
+        path('dependencias/', views.verDependencias, name='dependencias'),
+    ])
+    ),
 ]
 
 if settings.DEBUG:

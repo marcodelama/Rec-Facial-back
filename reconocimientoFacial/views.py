@@ -12,50 +12,70 @@ import numpy as np
 # Importación de modelos
 from .models import SrtrPersonal, SrtrRepositorioImagen, SrtrImagen, SrthDependencia, SrtrAsistencia
 
-#Flassger
-import request
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from flasgger import Swagger, swag_from
-import re
+# drf_yasg
+from drf_yasg import openapi
+from rest_framework.decorators import api_view
+from drf_yasg.utils import swagger_auto_schema
 
-app = Flask(__name__)
+# Esquemas reutilizables
+imagen_schema = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    properties={
+        'id_imagen': openapi.Schema(type=openapi.TYPE_NUMBER, description='ID de la imagen'),
+        'imagen_url': openapi.Schema(type=openapi.TYPE_STRING, description='URL de la imagen biométrica'),
+    }
+)
 
-CORS(app)
+dependencia_schema = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    properties={
+        'n_id_dependencia': openapi.Schema(type=openapi.TYPE_NUMBER, description='ID de la dependencia'),
+        'v_descripcion': openapi.Schema(type=openapi.TYPE_STRING, description='Descripción de la dependencia'),
+        'v_abreviatura': openapi.Schema(type=openapi.TYPE_STRING, description='Abreviatura de la dependencia'),
+    }
+)
 
-swagger = Swagger(app)
+dependencia_data_schema = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    properties={
+        'id_dependencia': openapi.Schema(type=openapi.TYPE_NUMBER, description='ID de la dependencia'),
+        'nombre': openapi.Schema(type=openapi.TYPE_STRING, description='Nombre de la dependencia'),
+        'abreviatura': openapi.Schema(type=openapi.TYPE_STRING, description='Abreviatura de la dependencia'),
+    }
+)
+
+# verDependencias
+@api_view(['GET'])
+@swagger_auto_schema(
+    operation_description="Obtiene la lista de todas las dependencias",
+    operation_summary="Listar Dependencias",
+    tags=['Dependencias']
+    responses={
+        200: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'data': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=dependencia_schema,
+                    description='Lista de dependencias'
+                ),
+                'size': openapi.Schema(
+                    type=openapi.TYPE_NUMBER,
+                    description='Cantidad total de dependencias'
+                )
+            }
+        ),
+        405: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'mensaje': openapi.Schema(type=openapi.TYPE_STRING, description='Mensaje de error')
+            }
+        )
+    },
+)
 
 @csrf_exempt
 def verDependencias(request):
-    """
-    Ver todas las dependencias
-    ---
-    tags:
-        - Dependencias
-    responses:
-     200:
-        description: Lista de dependencias
-        content: 
-         application/json:
-          schema:
-            type: object
-            properties:
-              data:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    n_id_dependencia:
-                      type: number
-                    v_descripcion:
-                      type: string
-                    v_abreviatura:
-                      type: string
-              size:
-                type: number
-      405: 
-        descripcion: Método no permitido
-    """
     if request.method == 'GET':
         dependencias = SrthDependencia.objects.all()
         dependenciasData = []
@@ -68,83 +88,64 @@ def verDependencias(request):
             dependenciasData.append(dependenciaData)
 
         size = len(dependenciasData)
-
         return JsonResponse({'data': dependenciasData, 'size': size})
     
     return JsonResponse({'mensaje': 'Método no permitido'}, status=405)
 
+# Vista de Personal
+@api_view(['GET'])
+@swagger_auto_schema(
+    operation_description="Obtiene la lista de todo el personal con sus datos, imágenes y dependencias",
+    responses={
+        200: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'data': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'n_id_personal': openapi.Schema(type=openapi.TYPE_NUMBER, description='ID del personal'),
+                            'v_cod_personal': openapi.Schema(type=openapi.TYPE_STRING, description='Código del personal'),
+                            'n_num_doc': openapi.Schema(type=openapi.TYPE_STRING, description='Número de documento'),
+                            'v_nombre': openapi.Schema(type=openapi.TYPE_STRING, description='Nombres'),
+                            'v_apellido_paterno': openapi.Schema(type=openapi.TYPE_STRING, description='Apellido paterno'),
+                            'v_apellido_materno': openapi.Schema(type=openapi.TYPE_STRING, description='Apellido materno'),
+                            'v_correo_institucional': openapi.Schema(type=openapi.TYPE_STRING, description='Correo institucional'),
+                            'n_telefono_contacto': openapi.Schema(type=openapi.TYPE_STRING, description='Teléfono de contacto'),
+                            'v_disponibilidad': openapi.Schema(type=openapi.TYPE_STRING, description='Disponibilidad'),
+                            'c_estado': openapi.Schema(type=openapi.TYPE_STRING, description='Estado'),
+                            'imagenes': imagen_schema,
+                            'dependencia': dependencia_data_schema,
+                        }
+                    )
+                ),
+                'size': openapi.Schema(type=openapi.TYPE_NUMBER, description='Cantidad total de registros'),
+            }
+        ),
+        405: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'mensaje': openapi.Schema(type=openapi.TYPE_STRING, description='Mensaje de error'),
+            }
+        ),
+    },
+    operation_summary="Listar Personal",
+    tags=['Personal']
+)
 @cache_page(0)
 def verPersonal(request):
-    """
-    Ver información detallada del personal
-    ---
-    tags:
-      - Personal
-    responses: 
-      200: 
-        description: Información de personal
-        content: 
-          application/json:
-            schema:
-              type: object
-              properties:
-                data:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      n_id_personal:
-                        type: number
-                      v_cod_personal:
-                        type: string
-                      n_num_doc:
-                        type: number
-                      v_nombre:
-                        type: string
-                      v_apellido_paterno:
-                        type: string
-                      v_apellido_materno:
-                        type: string
-                      v_correo_institucional:
-                        type: string
-                      n_telefono_contacto:
-                        type: number
-                      v_disponibilidad:
-                        type: string
-                      c_estado:
-                        type: char
-                      imagenes:
-                        type: object
-                        properties:
-                          id_imagen:
-                            type: number
-                          imagen_url:
-                            type: string
-                          dependencia:
-                            type: object
-                            properties:
-                              id_dependencia
-                                type: number
-                              nombre:
-                                type: string
-                              abreviatura: 
-                                type: string
-                  size:
-                    type: number
-      405:
-        description: Método no permitido
-    """
     if request.method == 'GET':
         personal = SrtrPersonal.objects.all()
         personaData = []
 
         for persona in personal:
             dependencia = persona.n_id_dependencia
-            repoImagen = SrtrRepositorioImagen.objects.filter(n_id_personal = persona.n_id_personal).first()
+            repoImagen = SrtrRepositorioImagen.objects.filter(n_id_personal=persona.n_id_personal).first()
+            imagen = None
 
-            imagen = SrtrImagen.objects.filter(n_id_rep_imagen = repoImagen.n_id_rep_imagen).first()
-
-            print("daotsimagen", imagen.n_id_imagen)
+            if repoImagen and repoImagen.n_id_rep_imagen:
+                imagen = SrtrImagen.objects.filter(n_id_rep_imagen=repoImagen.n_id_rep_imagen).first()
 
             imagenes_data = {
                 'id_imagen': imagen.n_id_imagen if imagen else None,
@@ -175,20 +176,56 @@ def verPersonal(request):
             personaData.append(personalData)
 
         size = len(personaData)
-
         return JsonResponse({'data': personaData, 'size': size})
     
     return JsonResponse({'mensaje': 'Método no permitido'}, status=405)
 
+# Vista de Registro de Personal
+@api_view(['POST'])
+@swagger_auto_schema(
+    operation_description="Registra una nueva persona con su imagen biométrica",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'n_num_doc': openapi.Schema(type=openapi.TYPE_STRING, description='Número de documento'),
+            'v_cod_personal': openapi.Schema(type=openapi.TYPE_STRING, description='Código de personal'),
+            'v_apellido_paterno': openapi.Schema(type=openapi.TYPE_STRING, description='Apellido paterno'),
+            'v_apellido_materno': openapi.Schema(type=openapi.TYPE_STRING, description='Apellido materno'),
+            'v_nombre': openapi.Schema(type=openapi.TYPE_STRING, description='Nombres'),
+            'n_telefono_contacto': openapi.Schema(type=openapi.TYPE_STRING, description='Teléfono de contacto'),
+            'v_correo_institucional': openapi.Schema(type=openapi.TYPE_STRING, description='Correo institucional'),
+            'n_id_dependencia': openapi.Schema(type=openapi.TYPE_NUMBER, description='ID de la dependencia'),
+            'cl_imagen_biometrica': openapi.Schema(type=openapi.TYPE_FILE, description='Imagen biométrica'),
+        },
+        required=['n_num_doc', 'v_nombre', 'v_apellido_paterno', 'v_apellido_materno', 'n_telefono_contacto', 
+                 'v_correo_institucional', 'cl_imagen_biometrica']
+    ),
+    responses={
+        201: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'mensaje': openapi.Schema(type=openapi.TYPE_STRING, description='Mensaje de éxito'),
+            }
+        ),
+        400: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'error': openapi.Schema(type=openapi.TYPE_STRING, description='Error de validación'),
+            }
+        ),
+        500: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'error': openapi.Schema(type=openapi.TYPE_STRING, description='Error interno del servidor'),
+            }
+        ),
+    },
+    operation_summary="Registrar Personal",
+    tags=['Personal']
+)
+
 @csrf_exempt
 def registrarPersona(request):
-    """
-    Registrar información del personal
-    ---
-    tags:
-    - personal
-    responses 
-    """
     if request.method == 'POST':
         numDni = request.POST.get('n_num_doc')
         codPersonal = request.POST.get('v_cod_personal')
@@ -234,13 +271,13 @@ def registrarPersona(request):
                 )
                 repositorioImagen.save()
                 
-                repositorio = SrtrRepositorioImagen.objects.filter(n_id_personal = idPersonal).first()
-                idRepositorio = SrtrRepositorioImagen.objects.get(n_id_rep_imagen = repositorio.n_id_rep_imagen)
+                repositorio = SrtrRepositorioImagen.objects.filter(n_id_personal=idPersonal).first()
+                idRepositorio = SrtrRepositorioImagen.objects.get(n_id_rep_imagen=repositorio.n_id_rep_imagen)
 
                 imagen = SrtrImagen(
-                    cl_imagen_biometrica = archivo,
-                    cl_encoding = encoding,
-                    n_id_rep_imagen = idRepositorio
+                    cl_imagen_biometrica=archivo,
+                    cl_encoding=encoding,
+                    n_id_rep_imagen=idRepositorio
                 )
                 imagen.save()
 
@@ -249,6 +286,42 @@ def registrarPersona(request):
             return JsonResponse({'error': f'Ocurrio un error inesperado: {e}'}, status=500)
     
     return JsonResponse({'error': 'Método no permitido'}, status=405)
+
+# Vista de Registro de Imagen
+@api_view(['POST'])
+@swagger_auto_schema(
+    operation_description="Registra una nueva imagen biométrica para un personal existente",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'n_id_personal': openapi.Schema(type=openapi.TYPE_NUMBER, description='ID del personal'),
+            'cl_imagen_biometrica': openapi.Schema(type=openapi.TYPE_FILE, description='Imagen biométrica'),
+        },
+        required=['n_id_personal', 'cl_imagen_biometrica']
+    ),
+    responses={
+        201: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'mensaje': openapi.Schema(type=openapi.TYPE_STRING, description='Mensaje de éxito'),
+            }
+        ),
+        400: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'error': openapi.Schema(type=openapi.TYPE_STRING, description='Error de validación'),
+            }
+        ),
+        500: openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'error': openapi.Schema(type=openapi.TYPE_STRING, description='Error interno del servidor'),
+            }
+        ),
+    },
+    operation_summary="Registrar Imagen",
+    tags=['Imágenes']
+)
 
 @csrf_exempt
 def registrarImagen(request):

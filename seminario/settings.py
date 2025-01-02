@@ -39,7 +39,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'reconocimientoFacial',
-    'corsheaders'
+    'corsheaders',
+    'drf_yasg',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
@@ -142,7 +144,11 @@ CORS_ALLOW_HEADERS = [
     "authorization",
     "x-csrftoken",
     "accept",
+    "accept-encoding",
     "origin",
+    "dnt",
+    "user-agent",
+
 ]
 
 MEDIA_URL = '/media/'
