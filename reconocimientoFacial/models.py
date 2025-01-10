@@ -55,6 +55,7 @@ class SrtrAsistencia(models.Model):
     t_hora_fin = models.DateTimeField(null=True)
     c_estado = models.CharField(max_length=1, null=True, db_comment='Asistencia del personal (0:No asisti¾, 1:Asisti¾, 2:Tardanza).')
     d_fecha = models.DateField(null=True)
+    t_horas = models.DurationField(null=True)
     n_id_personal = models.ForeignKey('SrtrPersonal', on_delete=models.CASCADE, db_column='n_id_personal')
 
     class Meta:

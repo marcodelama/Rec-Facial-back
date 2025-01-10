@@ -51,7 +51,7 @@ urlpatterns = [
     path('api/', include([
 
         path('personal/', views.verPersonal, name='personal'),
-        path('registrar-personal/', views.registrarPersona, name='registrar'),
+        path('registrar-personal/', views.registrarPersona, name='  '),
         path('registrar-imagen/', views.registrarImagen, name='imagen'),
         
         # URLs de asistencia

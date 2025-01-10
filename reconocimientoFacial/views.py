@@ -8,6 +8,7 @@ from django.views.decorators.cache import cache_page
 # Importación de librerías externas
 import face_recognition as fr
 import numpy as np
+from datetime import timedelta
 
 # Importación de modelos
 from .models import SrtrPersonal, SrtrRepositorioImagen, SrtrImagen, SrthDependencia, SrtrAsistencia
@@ -49,7 +50,7 @@ dependencia_data_schema = openapi.Schema(
 @swagger_auto_schema(
     operation_description="Obtiene la lista de todas las dependencias",
     operation_summary="Listar Dependencias",
-    tags=['Dependencias']
+    tags=['Dependencias'],
     responses={
         200: openapi.Schema(
             type=openapi.TYPE_OBJECT,
@@ -136,7 +137,7 @@ def verDependencias(request):
 @cache_page(0)
 def verPersonal(request):
     if request.method == 'GET':
-        personal = SrtrPersonal.objects.all()
+        personal = SrtrPersonal.objects.all().order_by('n_id_personal')
         personaData = []
 
         for persona in personal:
@@ -237,7 +238,7 @@ def registrarPersona(request):
         idDependencia = request.POST.get('n_id_dependencia')
         archivo = request.FILES.get('cl_imagen_biometrica')
 
-        if not nombre or not archivo or not numDni or not apellidoPaterno or not apellidoMaterno or not telefono or not correo:
+        if not nombre or not numDni or not apellidoPaterno or not apellidoMaterno or not telefono or not correo:
             return JsonResponse({'error': 'Hay datos que aun no se han proporcionado'}, status=400)
 
         imagen = fr.load_image_file(archivo)
@@ -339,8 +340,49 @@ def registrarImagen(request):
             return JsonResponse({'error': 'No se detectó ningún rostro en la imagen'}, status=400)
         
         try:
-            encoding = np.array(encodings[0]).tolist()
+            nuevo_encoding = np.array(encodings[0])
 
+            #Corroborar si el personal presenta imágenes en su registro.
+            imagenes_personal = SrtrImagen.objects.filter(
+                n_id_rep_imagen__n_id_personal__n_id_personal = idPersonal
+            )
+
+            if imagenes_personal.exists():
+                coincidencia_encontrada = False
+                for img_existente in imagenes_personal:
+                    encoding_existente = np.array(eval(img_existente.cl_encoding))
+                    distancia = np.linalg.norm(nuevo_encoding - encoding_existente)
+
+                    if distancia < 0.6:  # Mientras más cercano al cero, más semejante es la imagen
+                        coincidencia_encontrada = True
+                        break
+
+                if not coincidencia_encontrada:
+                    return JsonResponse({
+                        'error': 'La persona no coincide con las imágenes registradas.',
+                    }, status=400)                                                          
+                        
+            # Verificar si la imagen ya existe para otro personal
+            #Parte desde SrtrImagen, hacia el repositorio, luego accede a personal y obtiene el id específico
+            todas_imagenes = SrtrImagen.objects.exclude(n_id_rep_imagen__n_id_personal__n_id_personal=idPersonal)
+            
+            for img_existente in todas_imagenes:
+                # Convertir el encoding almacenado de string a array numpy
+                encoding_existente = np.array(eval(img_existente.cl_encoding))
+                
+                # Calcula la distancia entre los encodings
+                distancia = np.linalg.norm(nuevo_encoding - encoding_existente)
+                
+                if distancia < 0.6:
+                    return JsonResponse({
+                        'error': 'Esta imagen corresponde a otro personal ya registrado',
+                        'personal_existente': {
+                            'nombre': f"{img_existente.n_id_rep_imagen.n_id_personal.v_nombre} {img_existente.n_id_rep_imagen.n_id_personal.v_apellido_paterno}",
+                            'id': img_existente.n_id_rep_imagen.n_id_personal.n_id_personal
+                        }
+                    }, status=400)
+
+            # Si no hay duplicados, continuar con el registro
             id_personal = SrtrPersonal.objects.get(n_id_personal=idPersonal)
             
             repoImagen = SrtrRepositorioImagen(
@@ -353,12 +395,14 @@ def registrarImagen(request):
 
             imagen = SrtrImagen(
                 cl_imagen_biometrica = archivo,
-                cl_encoding = encoding,
+                cl_encoding = nuevo_encoding.tolist(),
                 n_id_rep_imagen = idRepositorio
             )
             imagen.save()
+
+            persona = SrtrPersonal.objects.filter(n_id_personal = idPersonal).first()
             
-            return JsonResponse({'mensaje': f'Imagen registrada para {idPersonal}'}, status=201)
+            return JsonResponse({'mensaje': f'Imagen registrada para {persona.v_nombre} {persona.v_apellido_paterno} {persona.v_apellido_materno}'}, status=201)
         except Exception as e:
             return JsonResponse({'error': f'Ocurrio un error inesperado: {e}'}, status=500)
 
@@ -393,11 +437,19 @@ def asistenciaPersona(request):
                         asistencia_hoy = SrtrAsistencia.objects.filter(n_id_personal=persona.n_id_personal, d_fecha=today).first()
                         
                         if asistencia_hoy:
-                            if asistencia_hoy.t_hora_inicio:
+                            if asistencia_hoy.t_hora_fin:
+                                return JsonResponse({'mensaje': f'La salida de {persona.v_nombre, persona.v_apellido_paterno, persona.v_apellido_materno} fue marcada a las {asistencia_hoy.t_hora_fin}'})
+                            elif asistencia_hoy.t_hora_inicio:
+                                diferencia = timezone.now() - asistencia_hoy.t_hora_inicio
+                                horas_trabajadas = diferencia.total_seconds()
+
                                 asistencia_hoy.t_hora_fin = timezone.now()
                                 asistencia_hoy.c_estado = 2
+                                asistencia_hoy.t_horas = timedelta(seconds=horas_trabajadas) 
                                 asistencia_hoy.save()
-                                return JsonResponse({'mensaje': f'Salida marcada para {persona.n_num_doc}: {persona.v_nombre}, {persona.v_apellido_paterno}'}, status=200)
+
+                                mensaje = f'Salida marcada. Horas registradas: {timedelta(seconds=horas_trabajadas) } para {persona.n_num_doc}: {persona.v_nombre}, {persona.v_apellido_paterno}'
+                                return JsonResponse({'mensaje': mensaje}, status=200)
                         else:
                             asistencia = SrtrAsistencia(
                                 t_hora_inicio = timezone.now(),
