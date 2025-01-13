@@ -73,6 +73,7 @@ class SrtrImagen(models.Model):
     n_id_imagen = models.BigIntegerField(primary_key=True)
     cl_imagen_biometrica = models.ImageField(upload_to='personas/')
     cl_encoding = models.TextField(blank=True, null=True)
+    d_fecha = models.DateField(null=False)
     n_id_rep_imagen = models.ForeignKey('SrtrRepositorioImagen', on_delete=models.CASCADE, db_column='n_id_rep_imagen')
 
     class Meta:

@@ -151,6 +151,7 @@ def verPersonal(request):
             imagenes_data = {
                 'id_imagen': imagen.n_id_imagen if imagen else None,
                 'imagen_url': request.build_absolute_uri(f'/media/{imagen.cl_imagen_biometrica}') if imagen else None,
+                'd_fecha': imagen.d_fecha if imagen else None,
             }
 
             dependencia_data = {
@@ -396,7 +397,8 @@ def registrarImagen(request):
             imagen = SrtrImagen(
                 cl_imagen_biometrica = archivo,
                 cl_encoding = nuevo_encoding.tolist(),
-                n_id_rep_imagen = idRepositorio
+                n_id_rep_imagen = idRepositorio,
+                d_fecha = timezone.now()
             )
             imagen.save()
 
@@ -436,9 +438,18 @@ def asistenciaPersona(request):
                         today = timezone.now().date()
                         asistencia_hoy = SrtrAsistencia.objects.filter(n_id_personal=persona.n_id_personal, d_fecha=today).first()
                         
+                        if imagen.d_fecha < (timezone.now() - timedelta(days=365)).date():
+                             return JsonResponse({
+                                'error': 'La imagen fue registrada hace más de un año. No se puede procesar.',
+                            }, status=400)
+
                         if asistencia_hoy:
                             if asistencia_hoy.t_hora_fin:
-                                return JsonResponse({'mensaje': f'La salida de {persona.v_nombre, persona.v_apellido_paterno, persona.v_apellido_materno} fue marcada a las {asistencia_hoy.t_hora_fin}'})
+                                return JsonResponse({
+                                    'mensaje': f'La salida fue marcada a las {asistencia_hoy.t_hora_fin}',
+                                    'personal': f'{persona.v_nombre} {persona.v_apellido_paterno} {persona.v_apellido_materno}',
+                                    'id_personal': persona.n_id_personal
+                                })
                             elif asistencia_hoy.t_hora_inicio:
                                 diferencia = timezone.now() - asistencia_hoy.t_hora_inicio
                                 horas_trabajadas = diferencia.total_seconds()
@@ -448,8 +459,12 @@ def asistenciaPersona(request):
                                 asistencia_hoy.t_horas = timedelta(seconds=horas_trabajadas) 
                                 asistencia_hoy.save()
 
+
                                 mensaje = f'Salida marcada. Horas registradas: {timedelta(seconds=horas_trabajadas) } para {persona.n_num_doc}: {persona.v_nombre}, {persona.v_apellido_paterno}'
-                                return JsonResponse({'mensaje': mensaje}, status=200)
+                                personal = f'{persona.v_nombre} {persona.v_apellido_paterno} {persona.v_apellido_materno}'
+                                id_personal = persona.n_id_personal
+                                
+                                return JsonResponse({'mensaje': mensaje, 'personal': personal, 'id_personal': id_personal}, status=200)
                         else:
                             asistencia = SrtrAsistencia(
                                 t_hora_inicio = timezone.now(),
@@ -459,7 +474,11 @@ def asistenciaPersona(request):
                             )
                             asistencia.save()
                                 
-                            response_data = {'mensaje': f'Asistencia registrada de {persona.v_nombre, persona.v_apellido_paterno}',}
+                            response_data = {
+                                'mensaje': f'Asistencia registrada de {persona.v_nombre} {persona.v_apellido_paterno}',
+                                'personal': f'{persona.v_nombre} {persona.v_apellido_paterno} {persona.v_apellido_materno}',
+                                'id_personal': persona.n_id_personal
+                            }
                             return JsonResponse(response_data, status=200)
 
             
