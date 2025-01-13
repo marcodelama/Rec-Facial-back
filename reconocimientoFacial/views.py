@@ -448,7 +448,8 @@ def asistenciaPersona(request):
                                 return JsonResponse({
                                     'mensaje': f'La salida fue marcada a las {asistencia_hoy.t_hora_fin}',
                                     'personal': f'{persona.v_nombre} {persona.v_apellido_paterno} {persona.v_apellido_materno}',
-                                    'id_personal': persona.n_id_personal
+                                    'id_personal': persona.n_id_personal,
+                                    'fecha_creacion': imagen.d_fecha
                                 })
                             elif asistencia_hoy.t_hora_inicio:
                                 diferencia = timezone.now() - asistencia_hoy.t_hora_inicio
@@ -464,7 +465,7 @@ def asistenciaPersona(request):
                                 personal = f'{persona.v_nombre} {persona.v_apellido_paterno} {persona.v_apellido_materno}'
                                 id_personal = persona.n_id_personal
                                 
-                                return JsonResponse({'mensaje': mensaje, 'personal': personal, 'id_personal': id_personal}, status=200)
+                                return JsonResponse({'mensaje': mensaje, 'personal': personal, 'id_personal': id_personal, 'fecha_creacion': imagen.d_fecha}, status=200)
                         else:
                             asistencia = SrtrAsistencia(
                                 t_hora_inicio = timezone.now(),
@@ -477,7 +478,8 @@ def asistenciaPersona(request):
                             response_data = {
                                 'mensaje': f'Asistencia registrada de {persona.v_nombre} {persona.v_apellido_paterno}',
                                 'personal': f'{persona.v_nombre} {persona.v_apellido_paterno} {persona.v_apellido_materno}',
-                                'id_personal': persona.n_id_personal
+                                'id_personal': persona.n_id_personal,
+                                'fecha_creacion': imagen.d_fecha
                             }
                             return JsonResponse(response_data, status=200)
 
