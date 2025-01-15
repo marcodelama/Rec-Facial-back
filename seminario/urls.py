@@ -56,9 +56,6 @@ urlpatterns = [
         
         # URLs de asistencia
         path('asistencia/', views.asistenciaPersona, name='asistencia'),
-        
-        # URLs de dependencias
-        path('dependencias/', views.verDependencias, name='dependencias'),
     ])
     ),
 ]

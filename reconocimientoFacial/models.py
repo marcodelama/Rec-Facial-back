@@ -31,6 +31,7 @@ class SrthDependencia(models.Model):
     v_abreviatura = models.CharField(max_length=70, null=True)
     
     class Meta:
+        managed = False
         db_table = 'SRTH_DEPENDENCIA'
 
 class SrtrPersonal(models.Model):
@@ -44,7 +45,7 @@ class SrtrPersonal(models.Model):
     n_num_doc = models.BigIntegerField(null=True)
     v_disponibilidad = models.CharField(max_length=20, null=True, db_comment='Disponibilidad del personal seg·n la fecha')
     c_estado = models.CharField(max_length=1, null=True)
-    n_id_dependencia = models.ForeignKey(SrthDependencia, db_column='n_id_dependencia',  on_delete=models.CASCADE)
+    n_id_dependencia = models.ForeignKey(SrthDependencia, db_column='n_id_dependencia',  on_delete=models.CASCADE, null=True)
     
     class Meta:
         db_table = 'SRTR_PERSONAL'

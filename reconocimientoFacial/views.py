@@ -11,7 +11,7 @@ import numpy as np
 from datetime import timedelta
 
 # Importación de modelos
-from .models import SrtrPersonal, SrtrRepositorioImagen, SrtrImagen, SrthDependencia, SrtrAsistencia
+from .models import SrtrPersonal, SrtrRepositorioImagen, SrtrImagen, SrtrAsistencia
 
 # drf_yasg
 from drf_yasg import openapi
@@ -27,76 +27,10 @@ imagen_schema = openapi.Schema(
     }
 )
 
-dependencia_schema = openapi.Schema(
-    type=openapi.TYPE_OBJECT,
-    properties={
-        'n_id_dependencia': openapi.Schema(type=openapi.TYPE_NUMBER, description='ID de la dependencia'),
-        'v_descripcion': openapi.Schema(type=openapi.TYPE_STRING, description='Descripción de la dependencia'),
-        'v_abreviatura': openapi.Schema(type=openapi.TYPE_STRING, description='Abreviatura de la dependencia'),
-    }
-)
-
-dependencia_data_schema = openapi.Schema(
-    type=openapi.TYPE_OBJECT,
-    properties={
-        'id_dependencia': openapi.Schema(type=openapi.TYPE_NUMBER, description='ID de la dependencia'),
-        'nombre': openapi.Schema(type=openapi.TYPE_STRING, description='Nombre de la dependencia'),
-        'abreviatura': openapi.Schema(type=openapi.TYPE_STRING, description='Abreviatura de la dependencia'),
-    }
-)
-
-# verDependencias
-@api_view(['GET'])
-@swagger_auto_schema(
-    operation_description="Obtiene la lista de todas las dependencias",
-    operation_summary="Listar Dependencias",
-    tags=['Dependencias'],
-    responses={
-        200: openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                'data': openapi.Schema(
-                    type=openapi.TYPE_ARRAY,
-                    items=dependencia_schema,
-                    description='Lista de dependencias'
-                ),
-                'size': openapi.Schema(
-                    type=openapi.TYPE_NUMBER,
-                    description='Cantidad total de dependencias'
-                )
-            }
-        ),
-        405: openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                'mensaje': openapi.Schema(type=openapi.TYPE_STRING, description='Mensaje de error')
-            }
-        )
-    },
-)
-
-@csrf_exempt
-def verDependencias(request):
-    if request.method == 'GET':
-        dependencias = SrthDependencia.objects.all()
-        dependenciasData = []
-        for dependencia in dependencias:
-            dependenciaData = {
-                'n_id_dependencia': dependencia.n_id_dependencia,
-                'v_descripcion': dependencia.v_descripcion,
-                'v_abreviatura': dependencia.v_abreviatura,
-            }
-            dependenciasData.append(dependenciaData)
-
-        size = len(dependenciasData)
-        return JsonResponse({'data': dependenciasData, 'size': size})
-    
-    return JsonResponse({'mensaje': 'Método no permitido'}, status=405)
-
 # Vista de Personal
 @api_view(['GET'])
 @swagger_auto_schema(
-    operation_description="Obtiene la lista de todo el personal con sus datos, imágenes y dependencias",
+    operation_description="Obtiene la lista de todo el personal con sus datos, imágenes",
     responses={
         200: openapi.Schema(
             type=openapi.TYPE_OBJECT,
@@ -117,7 +51,6 @@ def verDependencias(request):
                             'v_disponibilidad': openapi.Schema(type=openapi.TYPE_STRING, description='Disponibilidad'),
                             'c_estado': openapi.Schema(type=openapi.TYPE_STRING, description='Estado'),
                             'imagenes': imagen_schema,
-                            'dependencia': dependencia_data_schema,
                         }
                     )
                 ),
@@ -141,7 +74,6 @@ def verPersonal(request):
         personaData = []
 
         for persona in personal:
-            dependencia = persona.n_id_dependencia
             repoImagen = SrtrRepositorioImagen.objects.filter(n_id_personal=persona.n_id_personal).first()
             imagen = None
 
@@ -152,12 +84,6 @@ def verPersonal(request):
                 'id_imagen': imagen.n_id_imagen if imagen else None,
                 'imagen_url': request.build_absolute_uri(f'/media/{imagen.cl_imagen_biometrica}') if imagen else None,
                 'd_fecha': imagen.d_fecha if imagen else None,
-            }
-
-            dependencia_data = {
-                'id_dependencia': dependencia.n_id_dependencia,
-                'nombre': dependencia.v_descripcion,
-                'abreviatura': dependencia.v_abreviatura
             }
 
             personalData = {
@@ -171,8 +97,7 @@ def verPersonal(request):
                 'n_telefono_contacto': persona.n_telefono_contacto,
                 'v_disponibilidad': persona.v_disponibilidad,
                 'c_estado': persona.c_estado,
-                'imagenes': imagenes_data,
-                'dependencia': dependencia_data
+                'imagenes': imagenes_data
             }
 
             personaData.append(personalData)
@@ -196,7 +121,6 @@ def verPersonal(request):
             'v_nombre': openapi.Schema(type=openapi.TYPE_STRING, description='Nombres'),
             'n_telefono_contacto': openapi.Schema(type=openapi.TYPE_STRING, description='Teléfono de contacto'),
             'v_correo_institucional': openapi.Schema(type=openapi.TYPE_STRING, description='Correo institucional'),
-            'n_id_dependencia': openapi.Schema(type=openapi.TYPE_NUMBER, description='ID de la dependencia'),
             'cl_imagen_biometrica': openapi.Schema(type=openapi.TYPE_FILE, description='Imagen biométrica'),
         },
         required=['n_num_doc', 'v_nombre', 'v_apellido_paterno', 'v_apellido_materno', 'n_telefono_contacto', 
@@ -236,7 +160,6 @@ def registrarPersona(request):
         nombre = request.POST.get('v_nombre')
         telefono = request.POST.get('n_telefono_contacto')
         correo = request.POST.get('v_correo_institucional')
-        idDependencia = request.POST.get('n_id_dependencia')
         archivo = request.FILES.get('cl_imagen_biometrica')
 
         if not nombre or not numDni or not apellidoPaterno or not apellidoMaterno or not telefono or not correo:
@@ -251,7 +174,6 @@ def registrarPersona(request):
         try:
             with transaction.atomic():
                 encoding = np.array(encodings[0]).tolist()
-                dependencia = SrthDependencia.objects.get(n_id_dependencia=idDependencia)
 
                 personal = SrtrPersonal(
                     v_cod_personal=codPersonal,
@@ -260,8 +182,7 @@ def registrarPersona(request):
                     v_apellido_materno=apellidoMaterno,
                     v_correo_institucional=correo,
                     n_telefono_contacto=telefono,
-                    n_num_doc=numDni,
-                    n_id_dependencia=dependencia
+                    n_num_doc=numDni
                 )
                 personal.save()
 
@@ -428,16 +349,20 @@ def asistenciaPersona(request):
 
         try: 
             imagenes = SrtrImagen.objects.all()
+            umbral_similitud = 0.6  # Este es el umbral para la similitud de rostros. Ajusta según sea necesario.
             for imagen in imagenes:
                 repo = imagen.n_id_rep_imagen
                 persona = repo.n_id_personal
                 if imagen.cl_encoding:
-                    encondingRegistrado = np.array(eval(imagen.cl_encoding))
-                    coincidencia = fr.compare_faces([encondingRegistrado], encodingDesconocido)
-                    if coincidencia[0]:
+                    encodingRegistrado = np.array(eval(imagen.cl_encoding))
+                    # Compare faces y calcula la distancia
+                    resultados = fr.face_distance([encodingRegistrado], encodingDesconocido)
+
+                    # Si la distancia entre rostros es menor que el umbral de similitud, se considera una coincidencia
+                    if resultados[0] < umbral_similitud:
                         today = timezone.now().date()
                         asistencia_hoy = SrtrAsistencia.objects.filter(n_id_personal=persona.n_id_personal, d_fecha=today).first()
-                        
+
                         if imagen.d_fecha < (timezone.now() - timedelta(days=365)).date():
                              return JsonResponse({
                                 'error': 'La imagen fue registrada hace más de un año. No se puede procesar.',
@@ -460,8 +385,7 @@ def asistenciaPersona(request):
                                 asistencia_hoy.t_horas = timedelta(seconds=horas_trabajadas) 
                                 asistencia_hoy.save()
 
-
-                                mensaje = f'Salida marcada. Horas registradas: {timedelta(seconds=horas_trabajadas) } para {persona.n_num_doc}: {persona.v_nombre}, {persona.v_apellido_paterno}'
+                                mensaje = f'Salida marcada. Horas registradas: {timedelta(seconds=horas_trabajadas)} para {persona.n_num_doc}: {persona.v_nombre}, {persona.v_apellido_paterno}'
                                 personal = f'{persona.v_nombre} {persona.v_apellido_paterno} {persona.v_apellido_materno}'
                                 id_personal = persona.n_id_personal
                                 
@@ -482,7 +406,6 @@ def asistenciaPersona(request):
                                 'fecha_creacion': imagen.d_fecha
                             }
                             return JsonResponse(response_data, status=200)
-
             
             return JsonResponse({'mensaje': 'Rostro no reconocido'}, status=404)
         except Exception as e:
