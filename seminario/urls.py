@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, re_path, include
-from reconocimientoFacial import views
+from reconocimientoFacial import asistencia_view, personal_views, imagen_view
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework import permissions
@@ -50,12 +50,12 @@ urlpatterns = [
     
     path('api/', include([
 
-        path('personal/', views.verPersonal, name='personal'),
-        path('registrar-personal/', views.registrarPersona, name='  '),
-        path('registrar-imagen/', views.registrarImagen, name='imagen'),
+        path('personal/', personal_views.verPersonal, name='personal'),
+        path('registrar-personal/', personal_views.registrarPersona, name='  '),
+        path('registrar-imagen/', imagen_view.registrarImagen, name='imagen'),
         
         # URLs de asistencia
-        path('asistencia/', views.asistenciaPersona, name='asistencia'),
+        path('asistencia/', asistencia_view.asistenciaPersona, name='asistencia'),
     ])
     ),
 ]
